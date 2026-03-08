@@ -7,7 +7,7 @@ use iced::widget::{Space, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Fill, Length, Subscription, Theme, window};
 
 use crate::hypr;
-use crate::model::WorkspaceState;
+use crate::model::{WorkspaceSnapshot, WorkspaceState};
 
 const WINDOW_WIDTH: f32 = 720.0;
 const WINDOW_HEIGHT: f32 = 520.0;
@@ -27,7 +27,7 @@ pub fn run() -> iced::Result {
 #[derive(Debug, Clone)]
 enum ViewState {
     Loading,
-    Ready(Vec<WorkspaceState>),
+    Ready(WorkspaceSnapshot),
     Error(String),
 }
 
@@ -54,7 +54,7 @@ impl Default for HyprviewApp {
 #[derive(Debug, Clone)]
 enum Message {
     Refresh,
-    SnapshotLoaded(Result<Vec<WorkspaceState>, String>),
+    SnapshotLoaded(Result<WorkspaceSnapshot, String>),
     WindowResized(f32),
 }
 
@@ -94,7 +94,7 @@ fn subscription(_app: &HyprviewApp) -> Subscription<Message> {
 fn view(app: &HyprviewApp) -> Element<'_, Message> {
     let content = match &app.view_state {
         ViewState::Loading => loading_view(),
-        ViewState::Ready(workspaces) => workspace_list_view(workspaces, app.window_width),
+        ViewState::Ready(snapshot) => workspace_list_view(snapshot, app.window_width),
         ViewState::Error(error) => error_view(error),
     };
 
@@ -131,7 +131,8 @@ fn error_view<'a>(error: &'a str) -> Element<'a, Message> {
     panel(content).into()
 }
 
-fn workspace_list_view(workspaces: &[WorkspaceState], window_width: f32) -> Element<'_, Message> {
+fn workspace_list_view(snapshot: &WorkspaceSnapshot, window_width: f32) -> Element<'_, Message> {
+    let workspaces = snapshot.workspaces.as_slice();
     let columns = columns_for_width(window_width);
     let mut items = column![
         row![
@@ -144,7 +145,7 @@ fn workspace_list_view(workspaces: &[WorkspaceState], window_width: f32) -> Elem
     .spacing(18);
 
     for row_workspaces in workspaces.chunks(columns) {
-        let row = workspace_row(row_workspaces, columns);
+        let row = workspace_row(row_workspaces, columns, snapshot.focused_workspace_id);
         items = items.push(row);
     }
 
@@ -153,11 +154,15 @@ fn workspace_list_view(workspaces: &[WorkspaceState], window_width: f32) -> Elem
     panel(scroll).into()
 }
 
-fn workspace_row<'a>(workspaces: &'a [WorkspaceState], columns: usize) -> Element<'a, Message> {
+fn workspace_row<'a>(
+    workspaces: &'a [WorkspaceState],
+    columns: usize,
+    focused_workspace_id: Option<i32>,
+) -> Element<'a, Message> {
     let mut cards = row![].spacing(16).width(Length::Fill);
 
     for workspace in workspaces {
-        cards = cards.push(workspace_card(workspace));
+        cards = cards.push(workspace_card(workspace, focused_workspace_id));
     }
 
     for _ in workspaces.len()..columns {
@@ -167,9 +172,15 @@ fn workspace_row<'a>(workspaces: &'a [WorkspaceState], columns: usize) -> Elemen
     cards.into()
 }
 
-fn workspace_card(workspace: &WorkspaceState) -> Element<'_, Message> {
+fn workspace_card(workspace: &WorkspaceState, focused_workspace_id: Option<i32>) -> Element<'_, Message> {
+    let title = if focused_workspace_id == Some(workspace.id) {
+        format!("Workspace {} *", workspace.id)
+    } else {
+        format!("Workspace {}", workspace.id)
+    };
+
     let header = row![
-        text(format!("Workspace {}", workspace.id)).size(20),
+        text(title).size(20),
         text(workspace.name.as_str()).size(15),
     ]
     .spacing(12)

@@ -3,22 +3,25 @@ use std::env;
 use std::path::PathBuf;
 
 use anyhow::{Context, Result};
-use hyprland::data::{Clients, Workspaces};
+use hyprland::data::{Clients, Workspace, Workspaces};
 use hyprland::dispatch::{
     Dispatch, DispatchType, WindowIdentifier, WorkspaceIdentifierWithSpecial,
 };
 use hyprland::prelude::*;
 use hyprland::shared::Address;
 
-use crate::model::{WindowInfo, WorkspaceState};
+use crate::model::{WindowInfo, WorkspaceSnapshot, WorkspaceState};
 
-pub fn snapshot_workspaces() -> Result<Vec<WorkspaceState>> {
+pub fn snapshot_workspaces() -> Result<WorkspaceSnapshot> {
     let workspaces = Workspaces::get()
         .context("failed to query Hyprland workspaces")?
         .to_vec();
     let clients = Clients::get()
         .context("failed to query Hyprland clients")?
         .to_vec();
+    let focused_workspace_id = Workspace::get_active()
+        .context("failed to query active Hyprland workspace")?
+        .id;
 
     let mut by_id = BTreeMap::<i32, WorkspaceState>::new();
 
@@ -68,7 +71,10 @@ pub fn snapshot_workspaces() -> Result<Vec<WorkspaceState>> {
         });
     }
 
-    Ok(state)
+    Ok(WorkspaceSnapshot {
+        focused_workspace_id: (focused_workspace_id >= 0).then_some(focused_workspace_id),
+        workspaces: state,
+    })
 }
 
 pub fn move_window_to_workspace(window_address: &str, target_workspace: i32) -> Result<()> {

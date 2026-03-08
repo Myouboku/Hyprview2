@@ -13,6 +13,12 @@ pub struct WorkspaceState {
     pub windows: Vec<WindowInfo>,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct WorkspaceSnapshot {
+    pub focused_workspace_id: Option<i32>,
+    pub workspaces: Vec<WorkspaceState>,
+}
+
 #[derive(Debug, Deserialize, PartialEq, Eq)]
 #[serde(tag = "type", rename_all = "snake_case")]
 pub enum ControlRequest {

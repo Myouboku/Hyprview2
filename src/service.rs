@@ -1,7 +1,7 @@
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixStream;
 
-use anyhow::{Context, Result, bail};
+use anyhow::{bail, Context, Result};
 
 use crate::{hypr, ipc, notify};
 
@@ -17,8 +17,8 @@ pub fn run() -> Result<()> {
     })?;
 
     let initial_state = hypr::snapshot_workspaces()?;
-    let mut last_state_message = notify::format_notification(&initial_state);
-    let startup_message = notify::format_startup_notification(&initial_state);
+    let mut last_state_message = notify::format_notification(&initial_state.workspaces);
+    let startup_message = notify::format_startup_notification(&initial_state.workspaces);
 
     println!("{startup_message}");
     notify::send_notification(&startup_message)?;
@@ -34,7 +34,7 @@ pub fn run() -> Result<()> {
 
         match hypr::snapshot_workspaces() {
             Ok(state) => {
-                let message = notify::format_notification(&state);
+                let message = notify::format_notification(&state.workspaces);
                 if message == last_state_message {
                     continue;
                 }
