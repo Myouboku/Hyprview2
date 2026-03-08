@@ -26,7 +26,17 @@ pub fn format_notification(workspaces: &[WorkspaceState]) -> String {
         lines.push(line);
     }
 
-    let mut message = lines.join("\n");
+    truncate_message(lines.join("\n"))
+}
+
+pub fn format_startup_notification(workspaces: &[WorkspaceState]) -> String {
+    let state = format_notification(workspaces);
+    let message = format!("Hyprview2 started\n{state}");
+
+    truncate_message(message)
+}
+
+fn truncate_message(mut message: String) -> String {
     if message.len() > MAX_MESSAGE_LEN {
         message.truncate(utf8_boundary(&message, MAX_MESSAGE_LEN.saturating_sub(3)));
         message.push_str("...");

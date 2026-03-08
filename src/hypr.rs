@@ -1,4 +1,6 @@
 use std::collections::BTreeMap;
+use std::env;
+use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use hyprland::data::{Clients, Workspaces};
@@ -60,4 +62,16 @@ pub fn snapshot_workspaces() -> Result<Vec<WorkspaceState>> {
     }
 
     Ok(state)
+}
+
+pub fn event_socket_path() -> Result<PathBuf> {
+    let runtime_dir = env::var("XDG_RUNTIME_DIR")
+        .context("XDG_RUNTIME_DIR is not set; are you running inside a user session?")?;
+    let instance_signature = env::var("HYPRLAND_INSTANCE_SIGNATURE")
+        .context("HYPRLAND_INSTANCE_SIGNATURE is not set; are you running inside Hyprland?")?;
+
+    Ok(PathBuf::from(runtime_dir)
+        .join("hypr")
+        .join(instance_signature)
+        .join(".socket2.sock"))
 }
