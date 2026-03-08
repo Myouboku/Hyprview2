@@ -3,7 +3,7 @@ use std::time::Duration;
 use iced::alignment::{Horizontal, Vertical};
 use iced::task::Task;
 use iced::time;
-use iced::widget::{column, container, row, scrollable, text};
+use iced::widget::{Space, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Fill, Length, Subscription, Theme, window};
 
 use crate::hypr;
@@ -12,6 +12,9 @@ use crate::model::WorkspaceState;
 const WINDOW_WIDTH: f32 = 720.0;
 const WINDOW_HEIGHT: f32 = 520.0;
 const REFRESH_INTERVAL: Duration = Duration::from_millis(500);
+const MAX_COLUMNS: usize = 5;
+const CARD_MIN_HEIGHT: f32 = 170.0;
+const CARD_WINDOW_LIST_HEIGHT: f32 = 120.0;
 
 pub fn run() -> iced::Result {
     iced::application(title, update, view)
@@ -34,15 +37,25 @@ impl Default for ViewState {
     }
 }
 
-#[derive(Default)]
 struct HyprviewApp {
     view_state: ViewState,
+    window_width: f32,
+}
+
+impl Default for HyprviewApp {
+    fn default() -> Self {
+        Self {
+            view_state: ViewState::Loading,
+            window_width: WINDOW_WIDTH,
+        }
+    }
 }
 
 #[derive(Debug, Clone)]
 enum Message {
     Refresh,
     SnapshotLoaded(Result<Vec<WorkspaceState>, String>),
+    WindowResized(f32),
 }
 
 fn title(_app: &HyprviewApp) -> String {
@@ -64,17 +77,24 @@ fn update(app: &mut HyprviewApp, message: Message) -> Task<Message> {
 
             Task::none()
         }
+        Message::WindowResized(width) => {
+            app.window_width = width;
+            Task::none()
+        }
     }
 }
 
 fn subscription(_app: &HyprviewApp) -> Subscription<Message> {
-    time::every(REFRESH_INTERVAL).map(|_| Message::Refresh)
+    Subscription::batch([
+        time::every(REFRESH_INTERVAL).map(|_| Message::Refresh),
+        window::resize_events().map(|(_id, size)| Message::WindowResized(size.width)),
+    ])
 }
 
 fn view(app: &HyprviewApp) -> Element<'_, Message> {
     let content = match &app.view_state {
         ViewState::Loading => loading_view(),
-        ViewState::Ready(workspaces) => workspace_list_view(workspaces),
+        ViewState::Ready(workspaces) => workspace_list_view(workspaces, app.window_width),
         ViewState::Error(error) => error_view(error),
     };
 
@@ -111,7 +131,8 @@ fn error_view<'a>(error: &'a str) -> Element<'a, Message> {
     panel(content).into()
 }
 
-fn workspace_list_view(workspaces: &[WorkspaceState]) -> Element<'_, Message> {
+fn workspace_list_view(workspaces: &[WorkspaceState], window_width: f32) -> Element<'_, Message> {
+    let columns = columns_for_width(window_width);
     let mut items = column![
         row![
             text("Hyprview2").size(28),
@@ -122,13 +143,28 @@ fn workspace_list_view(workspaces: &[WorkspaceState]) -> Element<'_, Message> {
     ]
     .spacing(18);
 
-    for workspace in workspaces {
-        items = items.push(workspace_card(workspace));
+    for row_workspaces in workspaces.chunks(columns) {
+        let row = workspace_row(row_workspaces, columns);
+        items = items.push(row);
     }
 
-    let scroll = scrollable(items).height(Length::Shrink);
+    let scroll = scrollable(items).height(Length::Fill);
 
     panel(scroll).into()
+}
+
+fn workspace_row<'a>(workspaces: &'a [WorkspaceState], columns: usize) -> Element<'a, Message> {
+    let mut cards = row![].spacing(16).width(Length::Fill);
+
+    for workspace in workspaces {
+        cards = cards.push(workspace_card(workspace));
+    }
+
+    for _ in workspaces.len()..columns {
+        cards = cards.push(Space::with_width(Length::FillPortion(1)));
+    }
+
+    cards.into()
 }
 
 fn workspace_card(workspace: &WorkspaceState) -> Element<'_, Message> {
@@ -140,22 +176,30 @@ fn workspace_card(workspace: &WorkspaceState) -> Element<'_, Message> {
     .align_y(Alignment::Center);
 
     let windows = if workspace.windows.is_empty() {
-        column![text("empty").size(15)]
+        container(text("empty").size(15))
+            .height(CARD_WINDOW_LIST_HEIGHT)
+            .align_y(Vertical::Center)
     } else {
-        workspace.windows.iter().fold(column![].spacing(8), |column, window| {
-            column.push(
-                row![
-                    text("-"),
-                    text(window.class.as_str()).size(16),
-                    text(window.address.as_str()).size(13),
-                ]
-                .spacing(10),
-            )
-        })
+        let windows = workspace
+            .windows
+            .iter()
+            .fold(column![].spacing(8), |column, window| {
+                column.push(
+                    row![
+                        text("-"),
+                        text(window.class.as_str()).size(16),
+                        text(window.address.as_str()).size(13),
+                    ]
+                    .spacing(10),
+                )
+            });
+
+        container(scrollable(windows).height(CARD_WINDOW_LIST_HEIGHT))
     };
 
     container(column![header, windows].spacing(12))
-        .width(Length::Fill)
+        .width(Length::FillPortion(1))
+        .height(CARD_MIN_HEIGHT)
         .padding(16)
         .into()
 }
@@ -163,10 +207,24 @@ fn workspace_card(workspace: &WorkspaceState) -> Element<'_, Message> {
 fn panel<'a>(content: impl Into<Element<'a, Message>>) -> iced::widget::Container<'a, Message> {
     container(content)
         .width(Length::Fill)
-        .max_width(640)
+        .max_width(1440)
         .padding(24)
         .align_x(Horizontal::Left)
         .align_y(Vertical::Top)
+}
+
+fn columns_for_width(window_width: f32) -> usize {
+    if window_width < 500.0 {
+        1
+    } else if window_width < 760.0 {
+        2
+    } else if window_width < 1020.0 {
+        3
+    } else if window_width < 1280.0 {
+        4
+    } else {
+        MAX_COLUMNS
+    }
 }
 
 fn initial_task() -> Task<Message> {
