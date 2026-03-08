@@ -3,7 +3,7 @@ use std::time::Duration;
 use iced::alignment::{Horizontal, Vertical};
 use iced::task::Task;
 use iced::time;
-use iced::widget::{Space, column, container, row, scrollable, text};
+use iced::widget::{Space, button, column, container, row, scrollable, text};
 use iced::{Alignment, Element, Fill, Length, Subscription, Theme, window};
 
 use crate::hypr;
@@ -55,6 +55,8 @@ impl Default for HyprviewApp {
 enum Message {
     Refresh,
     SnapshotLoaded(Result<WorkspaceSnapshot, String>),
+    SwitchWorkspace(i32),
+    WorkspaceSwitched(Result<(), String>),
     WindowResized(f32),
 }
 
@@ -77,6 +79,20 @@ fn update(app: &mut HyprviewApp, message: Message) -> Task<Message> {
 
             Task::none()
         }
+        Message::SwitchWorkspace(workspace_id) => Task::perform(
+            async move {
+                hypr::switch_to_workspace(workspace_id)
+                    .map_err(|error| format!("{error:#}"))
+            },
+            Message::WorkspaceSwitched,
+        ),
+        Message::WorkspaceSwitched(result) => match result {
+            Ok(()) => refresh_task(),
+            Err(error) => {
+                app.view_state = ViewState::Error(error);
+                Task::none()
+            }
+        },
         Message::WindowResized(width) => {
             app.window_width = width;
             Task::none()
@@ -180,7 +196,9 @@ fn workspace_card(workspace: &WorkspaceState, focused_workspace_id: Option<i32>)
     };
 
     let header = row![
-        text(title).size(20),
+        button(text(title).size(20))
+            .padding(0)
+            .on_press(Message::SwitchWorkspace(workspace.id)),
         text(workspace.name.as_str()).size(15),
     ]
     .spacing(12)

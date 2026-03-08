@@ -89,6 +89,15 @@ pub fn move_window_to_workspace(window_address: &str, target_workspace: i32) -> 
     Ok(())
 }
 
+pub fn switch_to_workspace(target_workspace: i32) -> Result<()> {
+    Dispatch::call(DispatchType::Workspace(WorkspaceIdentifierWithSpecial::Id(
+        target_workspace,
+    )))
+    .with_context(|| format!("failed to switch to workspace {target_workspace}"))?;
+
+    Ok(())
+}
+
 pub fn event_socket_path() -> Result<PathBuf> {
     let runtime_dir = env::var("XDG_RUNTIME_DIR")
         .context("XDG_RUNTIME_DIR is not set; are you running inside a user session?")?;
