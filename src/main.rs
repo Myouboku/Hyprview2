@@ -1,5 +1,3 @@
-use anyhow::Result;
-
-fn main() -> Result<()> {
-    hyprview2::service::run()
+fn main() -> iced::Result {
+    hyprview2::ui::run()
 }

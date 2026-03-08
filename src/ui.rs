@@ -17,7 +17,7 @@ const CARD_MIN_HEIGHT: f32 = 170.0;
 const CARD_WINDOW_LIST_HEIGHT: f32 = 120.0;
 
 pub fn run() -> iced::Result {
-    iced::application(title, update, view)
+    iced::application(title, update, app_view)
         .theme(theme)
         .subscription(subscription)
         .window(window_settings())
@@ -107,7 +107,7 @@ fn subscription(_app: &HyprviewApp) -> Subscription<Message> {
     ])
 }
 
-fn view(app: &HyprviewApp) -> Element<'_, Message> {
+fn app_view(app: &HyprviewApp) -> Element<'_, Message> {
     let content = match &app.view_state {
         ViewState::Loading => loading_view(),
         ViewState::Ready(snapshot) => workspace_list_view(snapshot, app.window_width),
