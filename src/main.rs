@@ -1,4 +1,5 @@
 mod hypr;
+mod ipc;
 mod model;
 mod notify;
 mod service;

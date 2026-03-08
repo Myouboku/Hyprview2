@@ -1,11 +1,13 @@
 use std::io::{BufRead, BufReader};
 use std::os::unix::net::UnixStream;
 
-use anyhow::{bail, Context, Result};
+use anyhow::{Context, Result, bail};
 
-use crate::{hypr, notify};
+use crate::{hypr, ipc, notify};
 
 pub fn run() -> Result<()> {
+    ipc::spawn_control_socket_server()?;
+
     let socket_path = hypr::event_socket_path()?;
     let stream = UnixStream::connect(&socket_path).with_context(|| {
         format!(

@@ -4,7 +4,11 @@ use std::path::PathBuf;
 
 use anyhow::{Context, Result};
 use hyprland::data::{Clients, Workspaces};
+use hyprland::dispatch::{
+    Dispatch, DispatchType, WindowIdentifier, WorkspaceIdentifierWithSpecial,
+};
 use hyprland::prelude::*;
+use hyprland::shared::Address;
 
 use crate::model::{WindowInfo, WorkspaceState};
 
@@ -50,18 +54,33 @@ pub fn snapshot_workspaces() -> Result<Vec<WorkspaceState>> {
         }
 
         entry.windows.push(WindowInfo {
+            address: client.address.to_string(),
             class: client.class,
         });
     }
 
     let mut state = by_id.into_values().collect::<Vec<_>>();
     for workspace in &mut state {
-        workspace
-            .windows
-            .sort_by(|left, right| left.class.cmp(&right.class));
+        workspace.windows.sort_by(|left, right| {
+            left.class
+                .cmp(&right.class)
+                .then(left.address.cmp(&right.address))
+        });
     }
 
     Ok(state)
+}
+
+pub fn move_window_to_workspace(window_address: &str, target_workspace: i32) -> Result<()> {
+    Dispatch::call(DispatchType::MoveToWorkspaceSilent(
+        WorkspaceIdentifierWithSpecial::Id(target_workspace),
+        Some(WindowIdentifier::Address(Address::new(window_address))),
+    ))
+    .with_context(|| {
+        format!("failed to move window {window_address} to workspace {target_workspace}")
+    })?;
+
+    Ok(())
 }
 
 pub fn event_socket_path() -> Result<PathBuf> {
@@ -74,4 +93,11 @@ pub fn event_socket_path() -> Result<PathBuf> {
         .join("hypr")
         .join(instance_signature)
         .join(".socket2.sock"))
+}
+
+pub fn control_socket_path() -> Result<PathBuf> {
+    let runtime_dir = env::var("XDG_RUNTIME_DIR")
+        .context("XDG_RUNTIME_DIR is not set; are you running inside a user session?")?;
+
+    Ok(PathBuf::from(runtime_dir).join("hyprview2.sock"))
 }
